@@ -4,7 +4,6 @@ import org.gradle.api.JavaVersion
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.util.GradleVersion
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -29,19 +28,18 @@ class JdkTargetTest {
   }
 
   @Test
-  fun `android targeting java17 using JDK21 emit Kotlin removeFirst`() {
-    val gradleVersion = GradleVersion.version("8.7")
+  fun `android targeting java17 with compileSDK 36 emits Android removeFirst`() {
+    val gradleVersion = GradleVersion.version("9.5.0")
     val javaVersion = JavaVersion.VERSION_17
     setBytecodeTarget(javaVersion)
     build(
       listOf(
         "com.android.library",
-        "org.jetbrains.kotlin.android",
       ),
       """
         android {
           namespace = "dev.tilbrook.mylibrary"
-          compileSdk = 35
+          compileSdk = 36
 
           defaultConfig {
             minSdk = 24
@@ -57,23 +55,22 @@ class JdkTargetTest {
     println(result.output)
 
     val bytecode = readBytecode(isAndroid = true)
-    assertRemoveFirst(bytecode, javaVersion)
+    assertRemoveFirst(bytecode, javaVersion, removeSource = RemoveSource.Java)
   }
 
   @Test
   fun `android targeting java21 using JDK21 emit Java removeFirst`() {
-    val gradleVersion = GradleVersion.version("8.7")
+    val gradleVersion = GradleVersion.version("9.5.0")
     val javaVersion = JavaVersion.VERSION_21
     setBytecodeTarget(javaVersion)
     build(
       listOf(
         "com.android.library",
-        "org.jetbrains.kotlin.android",
       ),
       """
         android {
           namespace = "dev.tilbrook.mylibrary"
-          compileSdk = 35
+          compileSdk = 36
 
           defaultConfig {
             minSdk = 24
@@ -93,14 +90,13 @@ class JdkTargetTest {
   }
 
   @Test
-  fun `android targeting java17, using compileSDK 34 and using JDK21 emit Kotlin removeFirst`() {
-    val gradleVersion = GradleVersion.version("8.7")
+  fun `android targeting java17 with compileSDK 34 emits Kotlin removeFirst`() {
+    val gradleVersion = GradleVersion.version("9.5.0")
     val javaVersion = JavaVersion.VERSION_17
     setBytecodeTarget(javaVersion)
     build(
       listOf(
         "com.android.library",
-        "org.jetbrains.kotlin.android",
       ),
       """
         android {
@@ -126,7 +122,7 @@ class JdkTargetTest {
 
   @Test
   fun `targeting java17 using JDK21 should emit Kotlin removeFirst`() {
-    val gradleVersion = GradleVersion.version("8.7")
+    val gradleVersion = GradleVersion.version("9.5.0")
     val javaVersion = JavaVersion.VERSION_17
     setBytecodeTarget(javaVersion)
     build(listOf("org.jetbrains.kotlin.jvm"))
@@ -143,7 +139,7 @@ class JdkTargetTest {
 
   @Test
   fun `targeting java21 using JDK21 should emit Java removeFirst`() {
-    val gradleVersion = GradleVersion.version("8.7")
+    val gradleVersion = GradleVersion.version("9.5.0")
     val javaVersion = JavaVersion.VERSION_21
     setBytecodeTarget(javaVersion)
     build(listOf("org.jetbrains.kotlin.jvm"))
@@ -179,18 +175,37 @@ class JdkTargetTest {
 
   private fun readBytecode(isAndroid: Boolean): String {
     val file = File(testProjectDir.root, "bytecode.out")
-    val process = ProcessBuilder(
-      "javap",
-      "-v",
-      if (isAndroid) "${testProjectDir.root}/build/tmp/kotlin-classes/debug/dev/tilbrook/test/jvm/RemoveFirstKt.class"
-      else "${testProjectDir.root}/build/classes/kotlin/main/dev/tilbrook/test/jvm/RemoveFirstKt.class"
-    )
-      .apply {
-        redirectOutput(file)
-      }
+
+    val classFile = if (isAndroid) {
+      File(
+        testProjectDir.root,
+        "build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes/" +
+            "dev/tilbrook/test/jvm/RemoveFirstKt.class"
+      )
+    } else {
+      File(
+        testProjectDir.root,
+        "build/classes/kotlin/main/dev/tilbrook/test/jvm/RemoveFirstKt.class"
+      )
+    }
+
+    check(classFile.exists()) {
+      "Class file does not exist: ${classFile.absolutePath}"
+    }
+
+    val process = ProcessBuilder("javap", "-v", classFile.absolutePath)
+      .redirectErrorStream(true)
+      .redirectOutput(file)
       .start()
-    process.waitFor()
-    return file.readText().also { println("bytecode:\n$it") }
+
+    val exitCode = process.waitFor()
+    check(exitCode == 0) {
+      "javap failed with exit code $exitCode:\n${file.readText()}"
+    }
+
+    return file.readText().also {
+      println("bytecode:\n$it")
+    }
   }
 
   enum class RemoveSource {

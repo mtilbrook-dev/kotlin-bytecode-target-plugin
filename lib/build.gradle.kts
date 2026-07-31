@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 plugins {
@@ -6,7 +8,7 @@ plugins {
 }
 
 group = "dev.tilbrook"
-version = "1.0.0"
+version = "1.1.0"
 
 dependencies {
     compileOnly(gradleApi())
@@ -47,8 +49,10 @@ tasks.withType<PluginUnderTestMetadata>().configureEach {
 }
 
 val javaVersion = JavaVersion.VERSION_17
-tasks.withType(KotlinJvmCompile::class.java).configureEach {
-    kotlinOptions.jvmTarget = javaVersion.toString()
+tasks.withType(KotlinCompile::class.java).configureEach {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
 }
 // Kotlin requires the Java compatibility matches despite have no sources.
 tasks.withType(JavaCompile::class.java).configureEach {

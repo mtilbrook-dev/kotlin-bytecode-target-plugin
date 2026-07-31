@@ -9,14 +9,17 @@ import org.gradle.api.Project
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.withType
-import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
-import org.jetbrains.kotlin.gradle.dsl.KotlinJvmOptions
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 class KotlinBytecodeTargetPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
-        val jvmTarget = properties.getOrDefault("dev.tilbrook.kotlin.bytecodeTarget", "17")
-            .toString()
+        val jvmTarget = providers
+            .gradleProperty("dev.tilbrook.kotlin.bytecodeTarget")
+            .getOrElse("17")
             .let { JavaVersion.toVersion(it) }
+
+        jvmTarget(target, jvmTarget)
 
         pluginManager.withPlugin("com.android.application") {
             androidTarget<ApplicationExtension>(target, jvmTarget)
@@ -24,20 +27,14 @@ class KotlinBytecodeTargetPlugin : Plugin<Project> {
         pluginManager.withPlugin("com.android.library") {
             androidTarget<LibraryExtension>(target, jvmTarget)
         }
-        pluginManager.withPlugin("org.jetbrains.kotlin.android") {
-            jvmTarget(target, jvmTarget)
-        }
-        project.pluginManager.withPlugin("org.jetbrains.kotlin.jvm") {
-            jvmTarget(target, jvmTarget)
-        }
     }
 
     private fun jvmTarget(project: Project, javaVersion: JavaVersion) {
-        project.tasks.withType<KotlinCompile<KotlinJvmOptions>> {
+        project.tasks.withType<KotlinJvmCompile> {
             project.logger.info("Configuring kotlin jdk-target with $javaVersion")
-            kotlinOptions {
-                freeCompilerArgs += listOf("-Xjdk-release=$javaVersion")
-                jvmTarget = javaVersion.toString()
+            compilerOptions {
+                freeCompilerArgs.add("-Xjdk-release=${javaVersion.majorVersion}")
+                jvmTarget.set(JvmTarget.valueOf("JVM_${javaVersion.majorVersion}"))
             }
         }
 
@@ -49,15 +46,15 @@ class KotlinBytecodeTargetPlugin : Plugin<Project> {
         }
     }
 
-    private inline fun <reified T : CommonExtension<*, *, *, *, *, *>> androidTarget(project: Project, javaVersion: JavaVersion) {
+    private inline fun <reified T : CommonExtension> androidTarget(project: Project, javaVersion: JavaVersion) {
         project.logger.info("Configuring android source & target compatibility with jdk $javaVersion")
-        project.tasks.withType<KotlinCompile<KotlinJvmOptions>> {
-            kotlinOptions {
-                noJdk = false
+        project.tasks.withType<KotlinJvmCompile> {
+            compilerOptions {
+                noJdk.set(false)
             }
         }
         project.extensions.configure<T> {
-            compileOptions {
+            compileOptions.apply {
                 sourceCompatibility = javaVersion
                 targetCompatibility = javaVersion
             }
