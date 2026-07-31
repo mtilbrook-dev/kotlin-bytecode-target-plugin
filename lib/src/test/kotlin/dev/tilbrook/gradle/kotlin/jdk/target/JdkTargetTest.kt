@@ -154,6 +154,55 @@ class JdkTargetTest {
     assertRemoveFirst(bytecode, javaVersion)
   }
 
+  @Test
+  fun `Kotlin Multiplatform JVM target targeting java17 emits Kotlin removeFirst`() {
+    val gradleVersion = GradleVersion.version("9.5.0")
+    val javaVersion = JavaVersion.VERSION_17
+    setBytecodeTarget(javaVersion)
+    copyKmpFixture()
+    build(
+      listOf("org.jetbrains.kotlin.multiplatform"),
+      """
+        kotlin {
+          jvm()
+        }
+      """.trimIndent()
+    )
+
+    val result = runner(gradleVersion) {
+      withArguments("--info", "assemble")
+    }.build()
+
+    println(result.output)
+
+    val bytecode = readBytecode(isAndroid = false, isKmp = true)
+    assertRemoveFirst(bytecode, javaVersion)
+  }
+  @Test
+  fun `Kotlin Multiplatform JVM target targeting java21 emits Java removeFirst`() {
+    val gradleVersion = GradleVersion.version("9.5.0")
+    val javaVersion = JavaVersion.VERSION_21
+    setBytecodeTarget(javaVersion)
+    copyKmpFixture()
+    build(
+      listOf("org.jetbrains.kotlin.multiplatform"),
+      """
+        kotlin {
+          jvm()
+        }
+      """.trimIndent()
+    )
+
+    val result = runner(gradleVersion) {
+      withArguments("--info", "assemble")
+    }.build()
+
+    println(result.output)
+
+    val bytecode = readBytecode(isAndroid = false, isKmp = true)
+    assertRemoveFirst(bytecode, javaVersion)
+  }
+
   private fun runner(
     gradleVersion: GradleVersion,
     gradleRunner: GradleRunner.() -> GradleRunner
@@ -173,17 +222,26 @@ class JdkTargetTest {
     )
   }
 
-  private fun readBytecode(isAndroid: Boolean): String {
+  private fun copyKmpFixture() {
+    File(testProjectDir.root, "src/main/kotlin").copyRecursively(
+      File(testProjectDir.root, "src/jvmMain/kotlin")
+    )
+  }
+
+  private fun readBytecode(isAndroid: Boolean, isKmp: Boolean = false): String {
     val file = File(testProjectDir.root, "bytecode.out")
 
-    val classFile = if (isAndroid) {
-      File(
+    val classFile = when {
+      isAndroid -> File(
         testProjectDir.root,
         "build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes/" +
             "dev/tilbrook/test/jvm/RemoveFirstKt.class"
       )
-    } else {
-      File(
+      isKmp -> File(
+          testProjectDir.root,
+          "build/classes/kotlin/jvm/main/dev/tilbrook/test/jvm/RemoveFirstKt.class"
+        )
+      else -> File(
         testProjectDir.root,
         "build/classes/kotlin/main/dev/tilbrook/test/jvm/RemoveFirstKt.class"
       )

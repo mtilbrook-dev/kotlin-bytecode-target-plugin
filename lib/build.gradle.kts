@@ -30,8 +30,8 @@ gradlePlugin {
             implementationClass = "dev.tilbrook.gradle.kotlin.bytecode.KotlinBytecodeTargetPlugin"
             displayName = "Kotlin Bytecode Target Plugin"
             description =
-                "Sets the Kotlin and Java sourceCompatibility targetCompatibility and release flag to a specific bytecode target"
-            tags = listOf("kotlin", "android")
+                "Sets Kotlin, Java, Android, and Kotlin Multiplatform JVM bytecode targets and release flags"
+            tags = listOf("kotlin", "android", "multiplatform")
         }
     }
 }

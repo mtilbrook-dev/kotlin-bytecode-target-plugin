@@ -10,7 +10,9 @@ import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
+import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
 
 class KotlinBytecodeTargetPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
@@ -21,6 +23,9 @@ class KotlinBytecodeTargetPlugin : Plugin<Project> {
 
         jvmTarget(target, jvmTarget)
 
+        pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
+            kmpTarget(target, jvmTarget)
+        }
         pluginManager.withPlugin("com.android.application") {
             androidTarget<ApplicationExtension>(target, jvmTarget)
         }
@@ -43,6 +48,18 @@ class KotlinBytecodeTargetPlugin : Plugin<Project> {
             project.logger.info("Configuring java source & target compatibility with jdk $javaVersion")
             sourceCompatibility = javaVersion.toString()
             targetCompatibility = javaVersion.toString()
+        }
+    }
+
+    private fun kmpTarget(project: Project, javaVersion: JavaVersion) {
+        project.extensions.configure<KotlinMultiplatformExtension> {
+            targets.withType<KotlinJvmTarget>().configureEach {
+                project.logger.info("Configuring Kotlin Multiplatform JVM target with $javaVersion")
+                compilerOptions {
+                    freeCompilerArgs.add("-Xjdk-release=${javaVersion.majorVersion}")
+                    jvmTarget.set(JvmTarget.valueOf("JVM_${javaVersion.majorVersion}"))
+                }
+            }
         }
     }
 
