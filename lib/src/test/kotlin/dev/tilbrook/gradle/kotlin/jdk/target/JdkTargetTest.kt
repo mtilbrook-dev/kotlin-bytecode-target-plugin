@@ -203,10 +203,17 @@ class JdkTargetTest {
     when (expectedSource) {
       RemoveSource.Kotlin -> {
         assertTrue("Expected Kotlin removeFirst invocation", bytecode.contains(kotlinRemoveFirst))
-        assertFalse("Did not expect Java removeFirst invocation", bytecode.contains(javaRemoveFirst))
+        assertFalse(
+          "Did not expect Java removeFirst invocation",
+          bytecode.contains(javaRemoveFirst)
+        )
       }
+
       RemoveSource.Java -> {
-        assertFalse("Did not expect Kotlin removeFirst invocation", bytecode.contains(kotlinRemoveFirst))
+        assertFalse(
+          "Did not expect Kotlin removeFirst invocation",
+          bytecode.contains(kotlinRemoveFirst)
+        )
         assertTrue("Expected Java removeFirst invocation", bytecode.contains(javaRemoveFirst))
       }
     }

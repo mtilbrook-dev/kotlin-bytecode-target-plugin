@@ -6,7 +6,7 @@ junit = "4.13.2"
 [libraries]
 junit = { module = "junit:junit", version.ref = "junit" }
 plugin-agp = { module = "com.android.tools.build:gradle", version.ref = "agp" }
-plugin-kotlin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin"}
+plugin-kotlin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
