@@ -2,171 +2,151 @@ package dev.tilbrook.gradle.kotlin.jdk.target
 
 import org.gradle.api.JavaVersion
 import org.gradle.testkit.runner.GradleRunner
-import org.gradle.util.GradleVersion
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 
 class JdkTargetTest {
+  private companion object {
+    const val TESTED_GRADLE_VERSION = "9.5.0"
+  }
 
   private lateinit var buildFile: File
+
   private lateinit var gradleProperties: File
 
   @get:Rule
   val testProjectDir = TemporaryFolder()
 
-
   @Before
   fun setup() {
     val settingsFile = testProjectDir.newFile("settings.gradle.kts")
-    settingsFile.writeText(setttings())
+    settingsFile.writeText(settings())
     File("./src/testFixture").copyRecursively(testProjectDir.root)
     gradleProperties = testProjectDir.newFile("gradle.properties")
     buildFile = testProjectDir.newFile("build.gradle.kts")
   }
 
   @Test
-  fun `android targeting java17 using JDK21 emit Kotlin removeFirst`() {
-    val gradleVersion = GradleVersion.version("8.7")
-    val javaVersion = JavaVersion.VERSION_17
-    setBytecodeTarget(javaVersion)
-    build(
-      listOf(
-        "com.android.library",
-        "org.jetbrains.kotlin.android",
-      ),
-      """
-        android {
-          namespace = "dev.tilbrook.mylibrary"
-          compileSdk = 35
+  fun `android targeting java17 with compileSDK 36 emits Android removeFirst`() {
+    verifyAndroidRemoveFirst(
+      bytecodeTarget = JavaVersion.VERSION_17,
+      compileSdk = 36,
+      expectedSource = RemoveSource.Java,
+    )
+  }
 
-          defaultConfig {
-            minSdk = 24
-          }
-        }
-      """.trimIndent()
+  @Test
+  fun `android targeting java21 with compileSDK 36 emits Java removeFirst`() {
+    verifyAndroidRemoveFirst(
+      bytecodeTarget = JavaVersion.VERSION_21,
+      compileSdk = 36,
+      expectedSource = RemoveSource.Java,
+    )
+  }
+
+  @Test
+  fun `android targeting java17 with compileSDK 34 emits Kotlin removeFirst`() {
+    verifyAndroidRemoveFirst(
+      bytecodeTarget = JavaVersion.VERSION_17,
+      compileSdk = 34,
+      expectedSource = RemoveSource.Kotlin,
+    )
+  }
+
+  @Test
+  fun `JVM targeting java17 emits Kotlin removeFirst`() {
+    verifyJvmRemoveFirst(
+      bytecodeTarget = JavaVersion.VERSION_17,
+      expectedSource = RemoveSource.Kotlin,
+    )
+  }
+
+  @Test
+  fun `JVM targeting java21 emits Java removeFirst`() {
+    verifyJvmRemoveFirst(
+      bytecodeTarget = JavaVersion.VERSION_21,
+      expectedSource = RemoveSource.Java,
+    )
+  }
+
+  @Test
+  fun `Kotlin Multiplatform JVM targeting java17 emits Kotlin removeFirst`() {
+    verifyKmpRemoveFirst(
+      bytecodeTarget = JavaVersion.VERSION_17,
+      expectedSource = RemoveSource.Kotlin,
+    )
+  }
+
+  @Test
+  fun `Kotlin Multiplatform JVM targeting java21 emits Java removeFirst`() {
+    verifyKmpRemoveFirst(
+      bytecodeTarget = JavaVersion.VERSION_21,
+      expectedSource = RemoveSource.Java,
+    )
+  }
+
+  private fun verifyAndroidRemoveFirst(
+    bytecodeTarget: JavaVersion,
+    compileSdk: Int,
+    expectedSource: RemoveSource,
+  ) {
+    setBytecodeTarget(bytecodeTarget)
+    writeBuildFile(
+      "com.android.library",
+      configuration = androidLibraryConfiguration(compileSdk),
     )
 
-    val result = runner(gradleVersion) {
-      withArguments("--info", "assembleDebug")
-    }.build()
+    runBuild("assembleDebug")
 
-    println(result.output)
-
-    val bytecode = readBytecode(isAndroid = true)
-    assertRemoveFirst(bytecode, javaVersion)
+    assertRemoveFirst(readBytecode(ProjectType.Android), expectedSource)
   }
 
-  @Test
-  fun `android targeting java21 using JDK21 emit Java removeFirst`() {
-    val gradleVersion = GradleVersion.version("8.7")
-    val javaVersion = JavaVersion.VERSION_21
-    setBytecodeTarget(javaVersion)
-    build(
-      listOf(
-        "com.android.library",
-        "org.jetbrains.kotlin.android",
-      ),
-      """
-        android {
-          namespace = "dev.tilbrook.mylibrary"
-          compileSdk = 35
+  private fun verifyJvmRemoveFirst(
+    bytecodeTarget: JavaVersion,
+    expectedSource: RemoveSource,
+  ) {
+    setBytecodeTarget(bytecodeTarget)
+    writeBuildFile("org.jetbrains.kotlin.jvm")
 
-          defaultConfig {
-            minSdk = 24
-          }
+    runBuild("assemble")
+
+    assertRemoveFirst(readBytecode(ProjectType.Jvm), expectedSource)
+  }
+
+  private fun verifyKmpRemoveFirst(
+    bytecodeTarget: JavaVersion,
+    expectedSource: RemoveSource,
+  ) {
+    setBytecodeTarget(bytecodeTarget)
+    copyKmpFixture()
+    writeBuildFile(
+      "org.jetbrains.kotlin.multiplatform",
+      configuration = """
+        kotlin {
+          jvm()
         }
-      """.trimIndent()
+      """.trimIndent(),
     )
 
-    val result = runner(gradleVersion) {
-      withArguments("--info", "assembleDebug")
-    }.build()
+    runBuild("assemble")
 
-    println(result.output)
-
-    val bytecode = readBytecode(isAndroid = true)
-    assertRemoveFirst(bytecode, javaVersion)
+    assertRemoveFirst(readBytecode(ProjectType.Kmp), expectedSource)
   }
 
-  @Test
-  fun `android targeting java17, using compileSDK 34 and using JDK21 emit Kotlin removeFirst`() {
-    val gradleVersion = GradleVersion.version("8.7")
-    val javaVersion = JavaVersion.VERSION_17
-    setBytecodeTarget(javaVersion)
-    build(
-      listOf(
-        "com.android.library",
-        "org.jetbrains.kotlin.android",
-      ),
-      """
-        android {
-          namespace = "dev.tilbrook.mylibrary"
-          compileSdk = 34
-        
-          defaultConfig {
-            minSdk = 24
-          }
-        }
-      """.trimIndent()
-    )
-
-    val result = runner(gradleVersion) {
-      withArguments("--info", "assembleDebug")
-    }.build()
-
-    println(result.output)
-
-    val bytecode = readBytecode(isAndroid = true)
-    assertRemoveFirst(bytecode, javaVersion, removeSource = RemoveSource.Kotlin)
-  }
-
-  @Test
-  fun `targeting java17 using JDK21 should emit Kotlin removeFirst`() {
-    val gradleVersion = GradleVersion.version("8.7")
-    val javaVersion = JavaVersion.VERSION_17
-    setBytecodeTarget(javaVersion)
-    build(listOf("org.jetbrains.kotlin.jvm"))
-
-    val result = runner(gradleVersion) {
-      withArguments("--info", "assemble")
-    }.build()
-
-    println(result.output)
-
-    val bytecode = readBytecode(isAndroid = false)
-    assertRemoveFirst(bytecode, javaVersion)
-  }
-
-  @Test
-  fun `targeting java21 using JDK21 should emit Java removeFirst`() {
-    val gradleVersion = GradleVersion.version("8.7")
-    val javaVersion = JavaVersion.VERSION_21
-    setBytecodeTarget(javaVersion)
-    build(listOf("org.jetbrains.kotlin.jvm"))
-
-    val result = runner(gradleVersion) {
-      withArguments("--info", "assemble")
-    }.build()
-
-    println(result.output)
-
-    val bytecode = readBytecode(isAndroid = false)
-    assertRemoveFirst(bytecode, javaVersion)
-  }
-
-  private fun runner(
-    gradleVersion: GradleVersion,
-    gradleRunner: GradleRunner.() -> GradleRunner
-  ): GradleRunner {
-    return GradleRunner.create()
-      .withGradleVersion(gradleVersion.version)
+  private fun runBuild(task: String) {
+    val result = GradleRunner.create()
+      .withGradleVersion(TESTED_GRADLE_VERSION)
       .withPluginClasspath()
       .withProjectDir(testProjectDir.root)
-      .run(gradleRunner)
+      .withArguments("--info", task)
+      .build()
+
+    println(result.output)
   }
 
   private fun setBytecodeTarget(version: JavaVersion) {
@@ -177,46 +157,69 @@ class JdkTargetTest {
     )
   }
 
-  private fun readBytecode(isAndroid: Boolean): String {
-    val file = File(testProjectDir.root, "bytecode.out")
-    val process = ProcessBuilder(
-      "javap",
-      "-v",
-      if (isAndroid) "${testProjectDir.root}/build/tmp/kotlin-classes/debug/dev/tilbrook/test/jvm/RemoveFirstKt.class"
-      else "${testProjectDir.root}/build/classes/kotlin/main/dev/tilbrook/test/jvm/RemoveFirstKt.class"
+  private fun copyKmpFixture() {
+    File(testProjectDir.root, "src/main/kotlin").copyRecursively(
+      File(testProjectDir.root, "src/jvmMain/kotlin")
     )
-      .apply {
-        redirectOutput(file)
-      }
-      .start()
-    process.waitFor()
-    return file.readText().also { println("bytecode:\n$it") }
   }
 
-  enum class RemoveSource {
+  private fun readBytecode(projectType: ProjectType): String {
+    val file = File(testProjectDir.root, "bytecode.out")
+
+    val classFile = File(testProjectDir.root, projectType.classFilePath)
+
+    check(classFile.exists()) {
+      "Class file does not exist: ${classFile.absolutePath}"
+    }
+
+    val process = ProcessBuilder("javap", "-v", classFile.absolutePath)
+      .redirectErrorStream(true)
+      .redirectOutput(file)
+      .start()
+
+    val exitCode = process.waitFor()
+    check(exitCode == 0) {
+      "javap failed with exit code $exitCode:\n${file.readText()}"
+    }
+
+    return file.readText().also {
+      println("bytecode:\n$it")
+    }
+  }
+
+  private enum class RemoveSource {
     Kotlin,
     Java,
-    ;
   }
 
   private fun assertRemoveFirst(
     bytecode: String,
-    javaVersion: JavaVersion,
-    removeSource: RemoveSource =
-      if (javaVersion < JavaVersion.VERSION_21) RemoveSource.Kotlin else RemoveSource.Java
+    expectedSource: RemoveSource,
   ) {
-    val isCollectionKt = removeSource == RemoveSource.Kotlin
-    if (isCollectionKt) {
-      assert(bytecode.contains("kotlin/collections/CollectionsKt.removeFirst:(Ljava/util/List;)Ljava/lang/Object;"))
-      assert(!bytecode.contains("InterfaceMethod java/util/List.removeFirst:()Ljava/lang/Object;"))
-    } else {
-      assert(!bytecode.contains("kotlin/collections/CollectionsKt.removeFirst:(Ljava/util/List;)Ljava/lang/Object;"))
-      assert(bytecode.contains("InterfaceMethod java/util/List.removeFirst:()Ljava/lang/Object;"))
+    val kotlinRemoveFirst =
+      "kotlin/collections/CollectionsKt.removeFirst:(Ljava/util/List;)Ljava/lang/Object;"
+    val javaRemoveFirst = "InterfaceMethod java/util/List.removeFirst:()Ljava/lang/Object;"
+
+    when (expectedSource) {
+      RemoveSource.Kotlin -> {
+        assertTrue("Expected Kotlin removeFirst invocation", bytecode.contains(kotlinRemoveFirst))
+        assertFalse(
+          "Did not expect Java removeFirst invocation",
+          bytecode.contains(javaRemoveFirst)
+        )
+      }
+
+      RemoveSource.Java -> {
+        assertFalse(
+          "Did not expect Kotlin removeFirst invocation",
+          bytecode.contains(kotlinRemoveFirst)
+        )
+        assertTrue("Expected Java removeFirst invocation", bytecode.contains(javaRemoveFirst))
+      }
     }
   }
 
-
-  private fun setttings(): String = """
+  private fun settings(): String = """
         pluginManagement {
             repositories {
                 google {
@@ -241,18 +244,37 @@ class JdkTargetTest {
         rootProject.name = "TestLibrary"
     """.trimIndent()
 
-  private fun build(plugins: List<String>, block: String = "") {
+  private fun androidLibraryConfiguration(compileSdk: Int): String = """
+    android {
+      namespace = "dev.tilbrook.mylibrary"
+      compileSdk = $compileSdk
+
+      defaultConfig {
+        minSdk = 24
+      }
+    }
+  """.trimIndent()
+
+  private fun writeBuildFile(vararg plugins: String, configuration: String = "") {
     val ids = plugins.joinToString("\n", prefix = "    ") {
       "id(\"$it\")"
     }
-    """      
+    """
       plugins {
-      $ids
-          id("dev.tilbrook.kotlin.bytecode-target")
+    $ids
+        id("dev.tilbrook.kotlin.bytecode-target")
       }
-      $block
-          
-      """.trimIndent()
+      $configuration
+    """.trimIndent()
       .also { buildFile.writeText(it) }
+  }
+
+  private enum class ProjectType(val classFilePath: String) {
+    Android(
+      "build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes/" +
+          "dev/tilbrook/test/jvm/RemoveFirstKt.class",
+    ),
+    Jvm("build/classes/kotlin/main/dev/tilbrook/test/jvm/RemoveFirstKt.class"),
+    Kmp("build/classes/kotlin/jvm/main/dev/tilbrook/test/jvm/RemoveFirstKt.class"),
   }
 }
