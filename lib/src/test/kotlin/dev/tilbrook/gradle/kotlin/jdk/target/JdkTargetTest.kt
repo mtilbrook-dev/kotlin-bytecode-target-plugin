@@ -90,6 +90,51 @@ class JdkTargetTest {
     )
   }
 
+  @Test
+  fun `JVM targeting java8 via property value 8 emits Java 8 class files`() {
+    setBytecodeTarget("8")
+    writeBuildFile("org.jetbrains.kotlin.jvm")
+
+    runBuild("assemble")
+
+    assertJava8ClassFile(readBytecode(ProjectType.Jvm))
+  }
+
+  @Test
+  fun `android targeting java8 via property value 8 emits Java 8 class files`() {
+    setBytecodeTarget("8")
+    writeBuildFile(
+      "com.android.library",
+      configuration = androidLibraryConfiguration(compileSdk = 34),
+    )
+
+    runBuild("assembleDebug")
+
+    assertJava8ClassFile(readBytecode(ProjectType.Android))
+  }
+
+  @Test
+  fun `Kotlin Multiplatform JVM targeting java8 via property value 8 emits Java 8 class files`() {
+    setBytecodeTarget("8")
+    copyKmpFixture()
+    writeBuildFile(
+      "org.jetbrains.kotlin.multiplatform",
+      configuration = """
+        kotlin {
+          jvm()
+        }
+      """.trimIndent(),
+    )
+
+    runBuild("assemble")
+
+    assertJava8ClassFile(readBytecode(ProjectType.Kmp))
+  }
+
+  private fun assertJava8ClassFile(bytecode: String) {
+    assertTrue("Expected class file major version 52", bytecode.contains("major version: 52"))
+  }
+
   private fun verifyAndroidRemoveFirst(
     bytecodeTarget: JavaVersion,
     compileSdk: Int,
@@ -149,10 +194,12 @@ class JdkTargetTest {
     println(result.output)
   }
 
-  private fun setBytecodeTarget(version: JavaVersion) {
+  private fun setBytecodeTarget(version: JavaVersion) = setBytecodeTarget(version.toString())
+
+  private fun setBytecodeTarget(version: String) {
     gradleProperties.writeText(
       """
-        dev.tilbrook.kotlin.bytecodeTarget=${version}
+        dev.tilbrook.kotlin.bytecodeTarget=$version
         """.trimIndent()
     )
   }

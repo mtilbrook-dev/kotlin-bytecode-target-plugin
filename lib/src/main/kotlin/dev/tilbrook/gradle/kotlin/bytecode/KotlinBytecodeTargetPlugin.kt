@@ -39,7 +39,7 @@ class KotlinBytecodeTargetPlugin : Plugin<Project> {
       project.logger.info("Configuring kotlin jdk-target with $javaVersion")
       compilerOptions {
         freeCompilerArgs.add("-Xjdk-release=${javaVersion.majorVersion}")
-        jvmTarget.set(JvmTarget.valueOf("JVM_${javaVersion.majorVersion}"))
+        jvmTarget.set(javaVersion.toKotlinJvmTarget())
       }
     }
 
@@ -57,7 +57,7 @@ class KotlinBytecodeTargetPlugin : Plugin<Project> {
         project.logger.info("Configuring Kotlin Multiplatform JVM target with $javaVersion")
         compilerOptions {
           freeCompilerArgs.add("-Xjdk-release=${javaVersion.majorVersion}")
-          jvmTarget.set(JvmTarget.valueOf("JVM_${javaVersion.majorVersion}"))
+          jvmTarget.set(javaVersion.toKotlinJvmTarget())
         }
       }
     }
@@ -80,4 +80,9 @@ class KotlinBytecodeTargetPlugin : Plugin<Project> {
       }
     }
   }
+
+  // Kotlin names Java 8 `JVM_1_8`; later versions are `JVM_<major>`.
+  private fun JavaVersion.toKotlinJvmTarget(): JvmTarget =
+    if (this == JavaVersion.VERSION_1_8) JvmTarget.JVM_1_8
+    else JvmTarget.valueOf("JVM_$majorVersion")
 }
